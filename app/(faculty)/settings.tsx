@@ -33,9 +33,11 @@ export default function FacultySettings() {
         { 
           text: 'Logout', 
           style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/login');
+          onPress: async () => {
+            console.log('🔄 Starting logout from faculty settings...');
+            await logout();
+            console.log('✅ Logout completed from faculty settings');
+            // Don't manually navigate - let the index.tsx handle it
           }
         }
       ]

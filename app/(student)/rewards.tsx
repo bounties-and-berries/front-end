@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Student } from '@/types';
-import { mockRewards } from '@/data/mockData';
+import { Student, Reward } from '@/types';
+import { rewardAPI, pointsAPI } from '@/services/api';
 import GradientCard from '@/components/GradientCard';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
@@ -34,12 +34,40 @@ export default function StudentRewards() {
   const [selectedExpiry, setSelectedExpiry] = useState('All');
   const [selectedSort, setSelectedSort] = useState('Points: Low to High');
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [itemsClaimed, setItemsClaimed] = useState(0);
+  const [totalPointsSpent, setTotalPointsSpent] = useState(0);
   
-  // Mock data for claimed items and spent points
-  const itemsClaimed = 8;
-  const totalPointsSpent = 750;
+  // Load rewards and user stats
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [rewardsData, transactions] = await Promise.all([
+          rewardAPI.getAllRewards(),
+          pointsAPI.getUserTransactions(student?.id || '1'),
+        ]);
+        setRewards(rewardsData);
+        
+        // Calculate stats from transactions
+        const spentTransactions = transactions.filter(t => t.type === 'spent');
+        setItemsClaimed(spentTransactions.length);
+        setTotalPointsSpent(Math.abs(spentTransactions.reduce((sum, t) => sum + t.points, 0)));
+      } catch (error) {
+        console.error('Error loading rewards:', error);
+        Alert.alert('Error', 'Failed to load rewards. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (student?.id) {
+      loadData();
+    }
+  }, [student?.id]);
   
-  const filteredRewards = mockRewards
+  const filteredRewards = rewards
     .filter(reward => {
       const matchesSearch = reward.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            reward.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -70,7 +98,7 @@ export default function StudentRewards() {
       }
     });
 
-  const handleClaim = (reward: any) => {
+  const handleClaim = async (reward: Reward) => {
     if ((student?.totalPoints || 0) < reward.pointsCost) {
       Alert.alert(
         'Insufficient Berries',
@@ -86,8 +114,23 @@ export default function StudentRewards() {
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Claim', 
-          onPress: () => {
-            Alert.alert('Success', 'Reward claimed successfully!');
+          onPress: async () => {
+            try {
+              await rewardAPI.redeemReward(reward.id, student?.id || '1');
+              Alert.alert('Success', 'Reward claimed successfully!');
+              // Reload data to update points and stats
+              const [rewardsData, transactions] = await Promise.all([
+                rewardAPI.getAllRewards(),
+                pointsAPI.getUserTransactions(student?.id || '1'),
+              ]);
+              setRewards(rewardsData);
+              const spentTransactions = transactions.filter(t => t.type === 'spent');
+              setItemsClaimed(spentTransactions.length);
+              setTotalPointsSpent(Math.abs(spentTransactions.reduce((sum, t) => sum + t.points, 0)));
+            } catch (error) {
+              console.error('Error claiming reward:', error);
+              Alert.alert('Error', 'Failed to claim reward. Please try again.');
+            }
           }
         }
       ]

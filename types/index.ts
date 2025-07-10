@@ -65,6 +65,41 @@ export interface Event {
   image?: string;
 }
 
+// Backend bounty format
+export interface BackendBounty {
+  id: number;
+  name: string;
+  description: string;
+  type: string;
+  img_url: string;
+  alloted_points: number;
+  alloted_berries: number;
+  scheduled_date: string;
+  venue: string;
+  capacity: number;
+  is_active: boolean;
+  created_on: string;
+  modified_on: string;
+  created_by: string;
+  modified_by: string;
+}
+
+// Backend bounty request format
+export interface BackendBountyRequest {
+  name: string;
+  description: string;
+  type: string;
+  img_url: string;
+  alloted_points: number;
+  alloted_berries: number;
+  scheduled_date: string;
+  venue: string;
+  capacity: number;
+  is_active: boolean;
+  created_by: string;
+  modified_by: string;
+}
+
 export interface Reward {
   id: string;
   title: string;

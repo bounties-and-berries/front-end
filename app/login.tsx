@@ -73,8 +73,11 @@ export default function LoginScreen() {
     );
 
     try {
+      console.log('Attempting login with role:', selectedRole);
       const success = await login(email, password, selectedRole);
+      
       if (success) {
+        console.log('Login successful, navigating to:', selectedRole);
         // Navigation will be handled by the index file based on user role
         switch (selectedRole) {
           case 'student':
@@ -90,10 +93,27 @@ export default function LoginScreen() {
             router.replace('/(student)');
         }
       } else {
-        Alert.alert('Error', 'Invalid credentials. Please check your email, password, and selected role.');
+        Alert.alert(
+          'Login Failed', 
+          'Invalid credentials. Please check your email, password, and selected role.'
+        );
       }
-    } catch (error) {
-      Alert.alert('Error', 'Login failed. Please try again.');
+    } catch (error: any) {
+      console.error('Login error in component:', error);
+      
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Invalid credentials. Please check your email and password.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Login service not found. Please check your connection.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.message?.includes('Network Error')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
+      
+      Alert.alert('Login Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -105,13 +125,13 @@ export default function LoginScreen() {
 
   const fillDemoCredentials = (role: string) => {
     setSelectedRole(role);
-    setEmail(`${role}@demo.com`);
-    setPassword('password');
+    setEmail(role); // Use role as identifier (admin, student, faculty)
+    setPassword('admin@123'); // Use your expected password
   };
 
   return (
     <LinearGradient
-      colors={theme.colors.gradient.primary}
+      colors={theme.colors.gradient.primary as [string, string]}
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -192,7 +212,7 @@ export default function LoginScreen() {
                 <Mail size={20} color={theme.colors.textSecondary} />
                 <TextInput
                   style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="User name or Mobile"
+                  placeholder="Username or Email"
                   placeholderTextColor={theme.colors.textSecondary}
                   value={email}
                   onChangeText={setEmail}
@@ -258,7 +278,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={[styles.demoNote, { color: theme.colors.textSecondary }]}>
-                All demo accounts use password: "password"
+                All demo accounts use password: "admin@123"
               </Text>
             </View>
 
@@ -270,7 +290,7 @@ export default function LoginScreen() {
                 disabled={isLoading}
               >
                 <LinearGradient
-                  colors={theme.colors.gradient.primary}
+                  colors={theme.colors.gradient.primary as [string, string]}
                   style={styles.loginButtonGradient}
                 >
                   {isLoading ? (

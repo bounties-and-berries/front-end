@@ -33,9 +33,11 @@ export default function StudentSettings() {
         { 
           text: 'Logout', 
           style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/login');
+          onPress: async () => {
+            console.log('🔄 Starting logout from student settings...');
+            await logout();
+            console.log('✅ Logout completed from student settings');
+            // Don't manually navigate - let the index.tsx handle it
           }
         }
       ]

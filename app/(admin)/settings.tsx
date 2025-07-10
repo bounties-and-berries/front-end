@@ -18,7 +18,7 @@ import { User, Lock, Bell, CircleHelp as HelpCircle, FileText, MessageSquare, Ca
 
 export default function AdminSettings() {
   const { theme, toggleTheme, isDark } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, clearAllData } = useAuth();
   const router = useRouter();
   const admin = user as Admin;
   
@@ -33,9 +33,11 @@ export default function AdminSettings() {
         { 
           text: 'Logout', 
           style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/login');
+          onPress: async () => {
+            console.log('🔄 Starting logout from admin settings...');
+            await logout();
+            console.log('✅ Logout completed from admin settings');
+            // Don't manually navigate - let the index.tsx handle it
           }
         }
       ]
@@ -52,6 +54,26 @@ export default function AdminSettings() {
 
   const handleUploadPhoto = () => {
     Alert.alert('Upload Photo', 'This feature will be available soon.');
+  };
+
+  const handleClearAllData = () => {
+    Alert.alert(
+      'Clear All Data',
+      'This will clear all stored data and force you to login again. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Clear All Data', 
+          style: 'destructive',
+          onPress: async () => {
+            console.log('🧹 Starting clear all data from admin settings...');
+            await clearAllData();
+            console.log('✅ Clear all data completed from admin settings');
+            // The app will automatically redirect to login
+          }
+        }
+      ]
+    );
   };
 
   const settingsOptions = [
@@ -220,6 +242,32 @@ export default function AdminSettings() {
               </View>
             </AnimatedCard>
           ))}
+        </View>
+
+        {/* Debug Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Debug
+          </Text>
+          
+          <AnimatedCard style={styles.settingCard} onPress={handleClearAllData}>
+            <View style={styles.settingContent}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIcon, { backgroundColor: theme.colors.warning + '20' }]}>
+                  <LogOut size={20} color={theme.colors.warning} />
+                </View>
+                <View>
+                  <Text style={[styles.settingTitle, { color: theme.colors.warning }]}>
+                    Clear All Data
+                  </Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.colors.textSecondary }]}>
+                    Force logout and clear all stored data
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={theme.colors.textSecondary} />
+            </View>
+          </AnimatedCard>
         </View>
 
         {/* Logout Section */}

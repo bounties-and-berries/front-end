@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,19 +8,42 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
-import { mockEvents } from '@/data/mockData';
+import { eventAPI } from '@/services/api';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
 import { Plus, Search, Calendar, MapPin, Users, CreditCard as Edit, Trash2, Eye } from 'lucide-react-native';
+import { Event } from '@/types';
 
 export default function AdminEvents() {
   const { theme } = useTheme();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [events, setEvents] = useState(mockEvents);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Load events from API
+  useEffect(() => {
+    const loadEvents = async () => {
+      setLoading(true);
+      try {
+        console.log('Loading admin events from API...');
+        const eventsData = await eventAPI.getAllEvents();
+        console.log('Admin events loaded:', eventsData.length);
+        setEvents(eventsData);
+      } catch (error) {
+        console.error('Error loading admin events:', error);
+        Alert.alert('Error', 'Failed to load bounties. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, []);
   
   const filteredEvents = events.filter(event =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -39,7 +62,7 @@ export default function AdminEvents() {
     Alert.alert('Edit Bounty', `Edit bounty ${eventId} - Feature coming soon.`);
   };
 
-  const handleDeleteEvent = (eventId: string) => {
+  const handleDeleteEvent = async (eventId: string) => {
     Alert.alert(
       'Delete Bounty',
       'Are you sure you want to delete this bounty?',
@@ -48,9 +71,15 @@ export default function AdminEvents() {
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => {
-            setEvents(prev => prev.filter(event => event.id !== eventId));
-            Alert.alert('Success', 'Bounty deleted successfully!');
+          onPress: async () => {
+            try {
+              await eventAPI.deleteEvent(eventId);
+              setEvents(prev => prev.filter(event => event.id !== eventId));
+              Alert.alert('Success', 'Bounty deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting bounty:', error);
+              Alert.alert('Error', 'Failed to delete bounty. Please try again.');
+            }
           }
         }
       ]
@@ -96,7 +125,16 @@ export default function AdminEvents() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.eventsContainer}>
-          {filteredEvents.length === 0 ? (
+          {loading ? (
+            <AnimatedCard style={styles.loadingCard}>
+              <View style={styles.loadingContent}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                  Loading bounties...
+                </Text>
+              </View>
+            </AnimatedCard>
+          ) : filteredEvents.length === 0 ? (
             <AnimatedCard style={styles.emptyCard}>
               <View style={styles.emptyContent}>
                 <Calendar size={48} color={theme.colors.textSecondary} />
@@ -269,6 +307,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Regular',
     textAlign: 'center',
+  },
+  loadingCard: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
   },
   eventCard: {
     marginBottom: 0,

@@ -148,10 +148,12 @@ export default function TopMenuBar({
         { 
           text: 'Logout', 
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             closeMenu();
-            logout();
-            router.replace('/login');
+            console.log('🔄 Starting logout from TopMenuBar...');
+            await logout();
+            console.log('✅ Logout completed from TopMenuBar');
+            // Don't manually navigate - let the index.tsx handle it
           }
         }
       ]

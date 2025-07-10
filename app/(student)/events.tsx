@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,14 @@ import {
   TextInput,
   Modal,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockEvents } from '@/data/mockData';
+import { eventAPI, testAPI } from '@/services/api';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
 import { Search, Calendar, MapPin, Users, Star, Filter, Clock, CircleCheck as CheckCircle, Trophy, X } from 'lucide-react-native';
+import { Event } from '@/types';
 
 const categories = ['All', 'Academic', 'Cultural', 'Volunteer', 'Sports'];
 const eventSections = ['Upcoming', 'Registered', 'Completed'];
@@ -26,26 +28,132 @@ export default function StudentEvents() {
   const [selectedSection, setSelectedSection] = useState('Upcoming');
   const [showFilters, setShowFilters] = useState(false);
   const [dateFilter, setDateFilter] = useState('All');
+  const [loading, setLoading] = useState(false);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
+  const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
+  const [completedEvents, setCompletedEvents] = useState<Event[]>([]);
   
-  // Mock data for different sections
-  const upcomingEvents = mockEvents;
-  const registeredEvents = mockEvents.slice(0, 2);
-  const completedEvents = mockEvents.slice(1, 3);
+  // Mock user ID - in real app, get from auth context
+  const userId = '1'; // Replace with actual user ID from auth context
+  
+  // Load events data
+  useEffect(() => {
+    const loadEvents = async () => {
+      setLoading(true);
+      try {
+        // First test API connection and authentication
+        console.log('Testing API connection...');
+        const apiConnected = await testAPI.testConnection();
+        console.log('API connection test result:', apiConnected);
+        
+        console.log('Testing authentication...');
+        const authTest = await testAPI.testAuth();
+        console.log('Authentication test result:', authTest);
+        
+        console.log('Testing different endpoints...');
+        const endpointTest = await testAPI.testEndpoints();
+        console.log('Endpoint test result:', endpointTest);
+        
+        console.log('Loading events for user:', userId);
+        const [upcoming, registered, completed] = await Promise.all([
+          eventAPI.getUpcomingEvents().catch(() => []),
+          eventAPI.getRegisteredEvents(userId).catch(() => []),
+          eventAPI.getCompletedEvents(userId).catch(() => []),
+        ]);
+        console.log('Upcoming events:', upcoming);
+        console.log('Registered events:', registered);
+        console.log('Completed events:', completed);
+        
+        // Debug: Log event categories
+        if (upcoming.length > 0) {
+          console.log('Event categories found:', upcoming.map(e => e.category));
+        }
+        
+        // If no events from API, show some mock data for testing
+        if (upcoming.length === 0) {
+          console.log('No events from API, showing mock data for testing');
+          const mockEvents: Event[] = [
+            {
+              id: '1',
+              title: 'Hackathon 2024',
+              description: 'Annual coding competition with exciting prizes',
+              category: 'academic' as const,
+              date: '2024-03-15',
+              location: 'Main Auditorium',
+              points: 500,
+              registrationDeadline: '2024-03-10',
+              maxParticipants: 100,
+              currentParticipants: 75,
+              createdBy: '2',
+              image: 'https://images.pexels.com/photos/1181672/pexels-photo-1181672.jpeg?auto=compress&cs=tinysrgb&w=800',
+            },
+            {
+              id: '2',
+              title: 'Cultural Fest',
+              description: 'Showcase your talents in music, dance, and art',
+              category: 'cultural' as const,
+              date: '2024-03-20',
+              location: 'Campus Ground',
+              points: 300,
+              registrationDeadline: '2024-03-18',
+              maxParticipants: 200,
+              currentParticipants: 120,
+              createdBy: '2',
+              image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=800',
+            },
+            {
+              id: '3',
+              title: 'Tree Plantation Drive',
+              description: 'Help make our campus greener by planting trees',
+              category: 'volunteer' as const,
+              date: '2024-03-25',
+              location: 'Campus Garden',
+              points: 200,
+              registrationDeadline: '2024-03-23',
+              maxParticipants: 50,
+              currentParticipants: 25,
+              createdBy: '2',
+              image: 'https://images.pexels.com/photos/1179229/pexels-photo-1179229.jpeg?auto=compress&cs=tinysrgb&w=800',
+            }
+          ];
+          setUpcomingEvents(mockEvents);
+        } else {
+          setUpcomingEvents(upcoming);
+        }
+        
+        setRegisteredEvents(registered);
+        setCompletedEvents(completed);
+      } catch (error) {
+        console.error('Error loading events:', error);
+        Alert.alert('Error', 'Failed to load events. Please try again.');
+        // Set empty arrays as fallback
+        setUpcomingEvents([]);
+        setRegisteredEvents([]);
+        setCompletedEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEvents();
+  }, [userId]);
   
   const getCurrentEvents = () => {
     switch (selectedSection) {
       case 'Registered':
-        return registeredEvents;
+        return Array.isArray(registeredEvents) ? registeredEvents : [];
       case 'Completed':
-        return completedEvents;
+        return Array.isArray(completedEvents) ? completedEvents : [];
       default:
-        return upcomingEvents;
+        return Array.isArray(upcomingEvents) ? upcomingEvents : [];
     }
   };
   
-  const filteredEvents = getCurrentEvents().filter(event => {
+  const filteredEvents = getCurrentEvents().filter((event: Event) => {
     const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          event.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Fix category matching - convert both to lowercase for comparison
     const matchesCategory = selectedCategory === 'All' || 
                            event.category.toLowerCase() === selectedCategory.toLowerCase();
     
@@ -69,12 +177,32 @@ export default function StudentEvents() {
       }
     }
     
+    // Add debugging for category matching
+    if (selectedCategory !== 'All') {
+      console.log(`Filtering event "${event.title}":`);
+      console.log(`  Event category: "${event.category}"`);
+      console.log(`  Selected category: "${selectedCategory}"`);
+      console.log(`  Category match: ${matchesCategory}`);
+    }
+    
     return matchesSearch && matchesCategory && matchesDate;
   });
 
-  const handleRegister = (eventId: string) => {
-    // Handle event registration
-    console.log('Registering for event:', eventId);
+  const handleRegister = async (eventId: string) => {
+    try {
+      await eventAPI.registerForEvent(eventId, userId);
+      Alert.alert('Success', 'Successfully registered for the event!');
+      // Reload events to update the UI
+      const [upcoming, registered] = await Promise.all([
+        eventAPI.getUpcomingEvents(),
+        eventAPI.getRegisteredEvents(userId),
+      ]);
+      setUpcomingEvents(upcoming);
+      setRegisteredEvents(registered);
+    } catch (error) {
+      console.error('Error registering for event:', error);
+      Alert.alert('Error', 'Failed to register for event. Please try again.');
+    }
   };
 
   const getSectionIcon = (section: string) => {
@@ -224,89 +352,103 @@ export default function StudentEvents() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.eventsContainer}>
-          {filteredEvents.map((event) => (
-            <AnimatedCard key={event.id} style={styles.eventCard}>
-              <Image source={{ uri: event.image }} style={styles.eventImage} />
-              <View style={styles.eventContent}>
-                <View style={styles.eventHeader}>
-                  <View style={[
-                    styles.categoryTag,
-                    { backgroundColor: theme.colors.primary + '20' }
-                  ]}>
-                    <Text style={[styles.categoryTagText, { color: theme.colors.primary }]}>
-                      {event.category}
-                    </Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                Loading events...
+              </Text>
+            </View>
+          ) : filteredEvents.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No events found
+              </Text>
+            </View>
+          ) : (
+                        filteredEvents.map((event: Event) => (
+              <AnimatedCard key={event.id} style={styles.eventCard}>
+                <Image source={{ uri: event.image }} style={styles.eventImage} />
+                <View style={styles.eventContent}>
+                  <View style={styles.eventHeader}>
+                    <View style={[
+                      styles.categoryTag,
+                      { backgroundColor: theme.colors.primary + '20' }
+                    ]}>
+                      <Text style={[styles.categoryTagText, { color: theme.colors.primary }]}>
+                        {event.category}
+                      </Text>
+                    </View>
+                    <View style={styles.pointsBadge}>
+                      <Star size={12} color={theme.colors.accent} />
+                      <Text style={[styles.pointsText, { color: theme.colors.accent }]}>
+                        {event.points} pts
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.pointsBadge}>
-                    <Star size={12} color={theme.colors.accent} />
-                    <Text style={[styles.pointsText, { color: theme.colors.accent }]}>
-                      {event.points} pts
-                    </Text>
+                  
+                  <Text style={[styles.eventTitle, { color: theme.colors.text }]}>
+                    {event.title}
+                  </Text>
+                  <Text style={[styles.eventDescription, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                    {event.description}
+                  </Text>
+                  
+                  <View style={styles.eventDetails}>
+                    <View style={styles.eventDetail}>
+                      <Calendar size={16} color={theme.colors.textSecondary} />
+                      <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        {new Date(event.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View style={styles.eventDetail}>
+                      <MapPin size={16} color={theme.colors.textSecondary} />
+                      <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        {event.location}
+                      </Text>
+                    </View>
+                    <View style={styles.eventDetail}>
+                      <Users size={16} color={theme.colors.textSecondary} />
+                      <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        {event.currentParticipants}/{event.maxParticipants}
+                      </Text>
+                    </View>
                   </View>
+                  
+                  {selectedSection === 'Upcoming' && (
+                    <TouchableOpacity
+                      style={[
+                        styles.registerButton,
+                        { backgroundColor: theme.colors.primary }
+                      ]}
+                      onPress={() => handleRegister(event.id)}
+                    >
+                      <Text style={styles.registerButtonText}>
+                        Register Now
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  {selectedSection === 'Registered' && (
+                    <View style={[styles.statusBadge, { backgroundColor: theme.colors.primary + '20' }]}>
+                      <CheckCircle size={16} color={theme.colors.primary} />
+                      <Text style={[styles.statusText, { color: theme.colors.primary }]}>
+                        Registered
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {selectedSection === 'Completed' && (
+                    <View style={[styles.statusBadge, { backgroundColor: theme.colors.success + '20' }]}>
+                      <Trophy size={16} color={theme.colors.success} />
+                      <Text style={[styles.statusText, { color: theme.colors.success }]}>
+                        Completed • +{event.points} pts
+                    </Text>
+                    </View>
+                  )}
                 </View>
-                
-                <Text style={[styles.eventTitle, { color: theme.colors.text }]}>
-                  {event.title}
-                </Text>
-                <Text style={[styles.eventDescription, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                  {event.description}
-                </Text>
-                
-                <View style={styles.eventDetails}>
-                  <View style={styles.eventDetail}>
-                    <Calendar size={16} color={theme.colors.textSecondary} />
-                    <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
-                      {new Date(event.date).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <View style={styles.eventDetail}>
-                    <MapPin size={16} color={theme.colors.textSecondary} />
-                    <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
-                      {event.location}
-                    </Text>
-                  </View>
-                  <View style={styles.eventDetail}>
-                    <Users size={16} color={theme.colors.textSecondary} />
-                    <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
-                      {event.currentParticipants}/{event.maxParticipants}
-                    </Text>
-                  </View>
-                </View>
-                
-                {selectedSection === 'Upcoming' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.registerButton,
-                      { backgroundColor: theme.colors.primary }
-                    ]}
-                    onPress={() => handleRegister(event.id)}
-                  >
-                    <Text style={styles.registerButtonText}>
-                      Register Now
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                
-                {selectedSection === 'Registered' && (
-                  <View style={[styles.statusBadge, { backgroundColor: theme.colors.primary + '20' }]}>
-                    <CheckCircle size={16} color={theme.colors.primary} />
-                    <Text style={[styles.statusText, { color: theme.colors.primary }]}>
-                      Registered
-                    </Text>
-                  </View>
-                )}
-                
-                {selectedSection === 'Completed' && (
-                  <View style={[styles.statusBadge, { backgroundColor: theme.colors.success + '20' }]}>
-                    <Trophy size={16} color={theme.colors.success} />
-                    <Text style={[styles.statusText, { color: theme.colors.success }]}>
-                      Completed • +{event.points} pts
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </AnimatedCard>
-          ))}
+              </AnimatedCard>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -681,5 +823,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
   },
 });
