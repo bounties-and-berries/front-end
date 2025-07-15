@@ -144,3 +144,11 @@ export interface PublicProfile {
   badges: Badge[];
   rank: number;
 }
+
+export interface ClaimedReward {
+  claim_id: number;
+  reward_id: number;
+  name: string;
+  claimed_on: string;
+  redeemable_code: string;
+}

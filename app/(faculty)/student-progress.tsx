@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockUsers, mockTransactions } from '@/data/mockData';
+import { userAPI, pointsAPI } from '@/services/api';
 import { Student } from '@/types';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
@@ -23,25 +23,48 @@ export default function StudentProgress() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [selectedYear, setSelectedYear] = useState('All');
-  
-  const students = mockUsers.filter(user => user.role === 'student') as Student[];
-  
+  const [students, setStudents] = useState<Student[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const studentsData = await userAPI.getStudents();
+        setStudents(studentsData);
+        // Get all transactions for all students
+        const allTransactions: any[] = [];
+        for (const student of studentsData) {
+          const txns = await pointsAPI.getUserTransactions(student.id);
+          allTransactions.push(...txns.map(t => ({ ...t, studentId: student.id })));
+        }
+        setTransactions(allTransactions);
+      } catch (err: any) {
+        setError('Failed to load student progress data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDepartment = selectedDepartment === 'All' || student.department === selectedDepartment;
     const matchesYear = selectedYear === 'All' || student.year.toString() === selectedYear;
-    
     return matchesSearch && matchesDepartment && matchesYear;
   });
 
   const getStudentProgress = (studentId: string) => {
-    const studentTransactions = mockTransactions.filter(t => t.studentId === studentId && t.type === 'earned');
+    const studentTransactions = transactions.filter(t => t.studentId === studentId && t.type === 'earned');
     const thisMonth = studentTransactions.filter(t => {
       const transactionDate = new Date(t.date);
       const now = new Date();
       return transactionDate.getMonth() === now.getMonth() && transactionDate.getFullYear() === now.getFullYear();
     });
-    
     return {
       totalEarned: studentTransactions.reduce((sum, t) => sum + t.points, 0),
       thisMonth: thisMonth.reduce((sum, t) => sum + t.points, 0),
@@ -50,214 +73,226 @@ export default function StudentProgress() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       <TopMenuBar 
         title="Student Progress"
         subtitle="Monitor individual student performance"
       />
 
-      {/* Search and Filters */}
-      <View style={styles.filtersSection}>
-        <View style={[styles.searchBar, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Search size={20} color={theme.colors.textSecondary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholder="Search students..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+      {loading ? (
+        <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.text }}>Loading student progress...</Text>
+        </AnimatedCard>
+      ) : error ? (
+        <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.error }}>{error}</Text>
+        </AnimatedCard>
+      ) : (
+        <>
+          {/* Search and Filters */}
+          <View style={styles.filtersSection}>
+            <View style={[styles.searchBar, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}> 
+              <Search size={20} color={theme.colors.textSecondary} />
+              <TextInput
+                style={[styles.searchInput, { color: theme.colors.text }]}
+                placeholder="Search students..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.filterButtons}>
-            <Text style={[styles.filterLabel, { color: theme.colors.text }]}>Department:</Text>
-            {departmentFilters.map((dept) => (
-              <TouchableOpacity
-                key={dept}
-                style={[
-                  styles.filterButton,
-                  {
-                    backgroundColor: selectedDepartment === dept 
-                      ? theme.colors.primary 
-                      : theme.colors.surface,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
-                onPress={() => setSelectedDepartment(dept)}
-              >
-                <Text style={[
-                  styles.filterButtonText,
-                  { 
-                    color: selectedDepartment === dept 
-                      ? '#FFFFFF' 
-                      : theme.colors.textSecondary 
-                  }
-                ]}>
-                  {dept}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.filterButtons}>
-            <Text style={[styles.filterLabel, { color: theme.colors.text }]}>Year:</Text>
-            {yearFilters.map((year) => (
-              <TouchableOpacity
-                key={year}
-                style={[
-                  styles.filterButton,
-                  {
-                    backgroundColor: selectedYear === year 
-                      ? theme.colors.secondary 
-                      : theme.colors.surface,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
-                onPress={() => setSelectedYear(year)}
-              >
-                <Text style={[
-                  styles.filterButtonText,
-                  { 
-                    color: selectedYear === year 
-                      ? '#FFFFFF' 
-                      : theme.colors.textSecondary 
-                  }
-                ]}>
-                  {year === 'All' ? 'All Years' : `Year ${year}`}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Students List */}
-      <ScrollView 
-        style={styles.studentsList}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.studentsContainer}>
-          {filteredStudents.length === 0 ? (
-            <AnimatedCard style={styles.emptyCard}>
-              <View style={styles.emptyContent}>
-                <Users size={48} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
-                  No Students Found
-                </Text>
-                <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                  Try adjusting your search or filters.
-                </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.filterButtons}>
+                <Text style={[styles.filterLabel, { color: theme.colors.text }]}>Department:</Text>
+                {departmentFilters.map((dept) => (
+                  <TouchableOpacity
+                    key={dept}
+                    style={[
+                      styles.filterButton,
+                      {
+                        backgroundColor: selectedDepartment === dept 
+                          ? theme.colors.primary 
+                          : theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      }
+                    ]}
+                    onPress={() => setSelectedDepartment(dept)}
+                  >
+                    <Text style={[
+                      styles.filterButtonText,
+                      { 
+                        color: selectedDepartment === dept 
+                          ? '#FFFFFF' 
+                          : theme.colors.textSecondary 
+                      }
+                    ]}>
+                      {dept}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            </AnimatedCard>
-          ) : (
-            filteredStudents.map((student) => {
-              const progress = getStudentProgress(student.id);
-              
-              return (
-                <AnimatedCard key={student.id} style={styles.studentCard}>
-                  <View style={styles.studentContent}>
-                    <View style={styles.studentHeader}>
-                      <Image
-                        source={{ uri: student.profileImage }}
-                        style={styles.studentImage}
-                      />
-                      <View style={styles.studentInfo}>
-                        <Text style={[styles.studentName, { color: theme.colors.text }]}>
-                          {student.name}
-                        </Text>
-                        <Text style={[styles.studentDetails, { color: theme.colors.textSecondary }]}>
-                          {student.department} • Year {student.year}
-                        </Text>
-                        <Text style={[styles.studentEmail, { color: theme.colors.textSecondary }]}>
-                          {student.email}
-                        </Text>
-                      </View>
-                      <View style={styles.totalPoints}>
-                        <Text style={[styles.totalPointsValue, { color: theme.colors.primary }]}>
-                          {student.totalPoints}
-                        </Text>
-                        <Text style={[styles.totalPointsLabel, { color: theme.colors.textSecondary }]}>
-                          total berries
-                        </Text>
-                      </View>
-                    </View>
+            </ScrollView>
 
-                    <View style={styles.progressStats}>
-                      <View style={styles.statItem}>
-                        <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}>
-                          <TrendingUp size={16} color={theme.colors.success} />
-                        </View>
-                        <View>
-                          <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                            {progress.thisMonth}
-                          </Text>
-                          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                            This Month
-                          </Text>
-                        </View>
-                      </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.filterButtons}>
+                <Text style={[styles.filterLabel, { color: theme.colors.text }]}>Year:</Text>
+                {yearFilters.map((year) => (
+                  <TouchableOpacity
+                    key={year}
+                    style={[
+                      styles.filterButton,
+                      {
+                        backgroundColor: selectedYear === year 
+                          ? theme.colors.secondary 
+                          : theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      }
+                    ]}
+                    onPress={() => setSelectedYear(year)}
+                  >
+                    <Text style={[
+                      styles.filterButtonText,
+                      { 
+                        color: selectedYear === year 
+                          ? '#FFFFFF' 
+                          : theme.colors.textSecondary 
+                      }
+                    ]}>
+                      {year === 'All' ? 'All Years' : `Year ${year}`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
 
-                      <View style={styles.statItem}>
-                        <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}>
-                          <Award size={16} color={theme.colors.accent} />
-                        </View>
-                        <View>
-                          <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                            {progress.activitiesCount}
-                          </Text>
-                          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                            Activities
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.statItem}>
-                        <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}>
-                          <Calendar size={16} color={theme.colors.primary} />
-                        </View>
-                        <View>
-                          <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                            {Math.floor(Math.random() * 30) + 70}%
-                          </Text>
-                          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                            Attendance
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Progress Bar */}
-                    <View style={styles.progressBarContainer}>
-                      <View style={styles.progressBarHeader}>
-                        <Text style={[styles.progressBarLabel, { color: theme.colors.textSecondary }]}>
-                          Monthly Progress
-                        </Text>
-                        <Text style={[styles.progressBarValue, { color: theme.colors.primary }]}>
-                          {Math.round((progress.thisMonth / 500) * 100)}%
-                        </Text>
-                      </View>
-                      <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
-                        <View 
-                          style={[
-                            styles.progressFill, 
-                            { 
-                              width: `${Math.min((progress.thisMonth / 500) * 100, 100)}%`,
-                              backgroundColor: theme.colors.primary 
-                            }
-                          ]} 
-                        />
-                      </View>
-                    </View>
+          {/* Students List */}
+          <ScrollView 
+            style={styles.studentsList}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.studentsContainer}>
+              {filteredStudents.length === 0 ? (
+                <AnimatedCard style={styles.emptyCard}>
+                  <View style={styles.emptyContent}>
+                    <Users size={48} color={theme.colors.textSecondary} />
+                    <Text style={[styles.emptyTitle, { color: theme.colors.text }]}> 
+                      No Students Found
+                    </Text>
+                    <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}> 
+                      Try adjusting your search or filters.
+                    </Text>
                   </View>
                 </AnimatedCard>
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
+              ) : (
+                filteredStudents.map((student) => {
+                  const progress = getStudentProgress(student.id);
+                  
+                  return (
+                    <AnimatedCard key={student.id} style={styles.studentCard}>
+                      <View style={styles.studentContent}>
+                        <View style={styles.studentHeader}>
+                          <Image
+                            source={{ uri: student.profileImage }}
+                            style={styles.studentImage}
+                          />
+                          <View style={styles.studentInfo}>
+                            <Text style={[styles.studentName, { color: theme.colors.text }]}> 
+                              {student.name}
+                            </Text>
+                            <Text style={[styles.studentDetails, { color: theme.colors.textSecondary }]}> 
+                              {student.department} • Year {student.year}
+                            </Text>
+                            <Text style={[styles.studentEmail, { color: theme.colors.textSecondary }]}> 
+                              {student.email}
+                            </Text>
+                          </View>
+                          <View style={styles.totalPoints}>
+                            <Text style={[styles.totalPointsValue, { color: theme.colors.primary }]}> 
+                              {student.totalPoints}
+                            </Text>
+                            <Text style={[styles.totalPointsLabel, { color: theme.colors.textSecondary }]}> 
+                              total berries
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.progressStats}>
+                          <View style={styles.statItem}>
+                            <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}> 
+                              <TrendingUp size={16} color={theme.colors.success} />
+                            </View>
+                            <View>
+                              <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                                {progress.thisMonth}
+                              </Text>
+                              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                                This Month
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.statItem}>
+                            <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}> 
+                              <Award size={16} color={theme.colors.accent} />
+                            </View>
+                            <View>
+                              <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                                {progress.activitiesCount}
+                              </Text>
+                              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                                Activities
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.statItem}>
+                            <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}> 
+                              <Calendar size={16} color={theme.colors.primary} />
+                            </View>
+                            <View>
+                              <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                                {Math.floor(Math.random() * 30) + 70}%
+                              </Text>
+                              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                                Attendance
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Progress Bar */}
+                        <View style={styles.progressBarContainer}>
+                          <View style={styles.progressBarHeader}>
+                            <Text style={[styles.progressBarLabel, { color: theme.colors.textSecondary }]}> 
+                              Monthly Progress
+                            </Text>
+                            <Text style={[styles.progressBarValue, { color: theme.colors.primary }]}> 
+                              {Math.round((progress.thisMonth / 500) * 100)}%
+                            </Text>
+                          </View>
+                          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}> 
+                            <View 
+                              style={[
+                                styles.progressFill, 
+                                { 
+                                  width: `${Math.min((progress.thisMonth / 500) * 100, 100)}%`,
+                                  backgroundColor: theme.colors.primary 
+                                }
+                              ]} 
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    </AnimatedCard>
+                  );
+                })
+              )}
+            </View>
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }

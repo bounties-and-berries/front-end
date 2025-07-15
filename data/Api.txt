@@ -1,0 +1,230 @@
+--- # API Endpoints Documentation
+--- ## **AuthController** ### **POST /api/auth/login**
+**Description:** Authenticate user and return JWT token. Requires mobile, name, password, and role. **Request Example:**
+```json
+{ "mobile": "9000000001", "name": "Admin User", "password": "admin@123", "role": "admin"
+}
+``` **Response Example:**
+```json
+{ "token": "<JWT_TOKEN>"
+}
+```
+--- ## **UserController** ### **POST /api/user/**
+**Description:** Create a new user (admin only). Returns created user info and password. **Request Example:**
+```json
+{ "mobile": "9000000012", "name": "Faculty User", "role": "faculty", "college_id": 1
+}
+``` **Response Example:**
+```json
+{ "id": 12, "mobile": "9000000012", "name": "Faculty User", "role_id": 2, "college_id": 1, "role": "faculty", "password": "<generated_password>"
+}
+```
+### **POST /api/user/bulk**
+**Description:** Bulk create users from CSV/Excel (admin only). Upload file as 'file' field. **Request Example:**
+(multipart/form-data with file) **Response Example:**
+```json
+{ "created": [
+{ "username": "faculty1", "mobilenumber": "8888888888", "role": "faculty", "password": "<generated_password>"
+}
+]
+}
+``` ### **POST /api/user/change-password**
+**Description:** Change password for self or by admin. Requires authentication. **Request Example:**
+```json
+{ "mobile": "9000000002", "name": "Faculty User", "oldPassword": "oldpass", "newPassword": "newpass", "role": "faculty"
+}
+``` **Response Example:**
+```json
+{ "message": "Password changed successfully"
+}
+```
+--- ## **RewardController** ### **GET /api/reward/**
+**Description:** List all available rewards. Requires authentication. **Response Example:**
+```json
+[]``` ### **GET /api/reward/:id**
+**Description:** Get reward details by ID. Requires authentication. **Response Example:**
+```json
+{ "id": 3, "name": "Gift Card", "berries_required": 20
+}
+``` ### **POST /api/reward/**
+**Description:** Create a new reward (creator only). Returns created reward. **Request Example:**
+```json
+{ "name": "Gift Card", "berries_required": 20, "description": "A gift card"
+}
+``` **Response Example:**
+```json
+{ "id": 3, "name": "Gift Card", "berries_required": 20
+}
+``` ### **PUT /api/reward/:id**
+**Description:** Update a reward (creator only). Returns updated reward. **Request Example:**
+```json
+{ "name": "Gift Card Updated", "berries_required": 25
+}
+``` **Response Example:**
+```json
+{ "id": 3, "name": "Gift Card Updated", "berries_required": 25
+}
+``` ### **DELETE /api/reward/:id**
+**Description:** Delete a reward (creator only). Returns success message.
+**Response Example:**
+```json
+{ "message": "Reward deleted successfully"
+}
+``` ### **POST /api/reward/claim/:id**
+**Description:** Claim a reward if enough berries. Prevents double claim. **Response Example:**
+```json
+{ "message": "Reward claimed successfully", "reward": { "id": 3, "name": "Gift Card", "cost": 20 }, "remaining_berries": 80, "claim_id": 15, "redeem_code": "ABCD1234"
+}
+``` ### **GET /api/reward/claimed**
+**Description:** List claimed rewards for current user. Requires authentication. **Response Example:**
+```json
+[
+{ "claim_id": 1, "reward_id": 3, "name": "Gift Card", "claimed_on": "2025-07-14T12:00:00.000Z", "redeemable_code": "ABCD1234"
+}
+]``` ### **POST /api/reward/search**
+**Description:** Search and filter rewards. Supports filters, sorting, and pagination. **Request Example:**
+```json
+{ "filters": { "name": "Gift" }, "sortBy": "name", "sortOrder": "asc", "pageNumber": 1, "pageSize": 10
+}
+``` **Response Example:**
+```json
+{
+"results": [
+{ "id": 3, "name": "Gift Card", "berries_required": 20 }
+]
+}
+```
+--- ## **BountyController** ### **GET /api/bounties/**
+**Description:** List all bounties. Requires authentication. **Response Example:**
+```json
+[]``` ### **POST /api/bounties/**
+**Description:** Create a new bounty (creator only). Returns created bounty. **Request Example:**
+```json
+{ "name": "Test Bounty", "alloted_points": 100, "alloted_berries": 10, "scheduled_date": "2025-07-20T10:00:00Z", "venue": "Main Hall", "capacity": 50, "is_active": true
+}
+``` **Response Example:**
+```json
+{ "id": 15, "name": "Test Bounty"
+}
+``` ### **GET /api/bounties/:id**
+**Description:** Get bounty details by ID. Requires authentication. **Response Example:**
+```json
+{ "id": 15, "name": "Test Bounty"
+}
+``` ### **PUT /api/bounties/:id**
+**Description:**
+Update a bounty (creator only). Returns updated bounty. **Request Example:**
+```json
+{ "name": "Test Bounty Updated"
+}
+``` **Response Example:**
+```json
+{ "id": 15, "name": "Test Bounty Updated"
+}
+``` ### **DELETE /api/bounties/:id**
+**Description:** Soft delete a bounty (creator only). Sets is_active=false. **Response Example:**
+```json
+{ "message": "Bounty deleted successfully"
+}
+``` ### **POST /api/bounties/register/:bountyId**
+**Description:** Register for a bounty as a student. Prevents double registration and expired bounties. **Response Example:**
+```json
+{ "message": "registered successfully"
+}
+```
+--- ## **BountyParticipationController** ### **GET /api/bounty-participation/bounty/:bountyId**
+**Description:** View all students in a specific bounty (admin/faculty/creator). Returns participants. **Response Example:**
+```json
+{ "bounty_id": 12, "bounty_name": "Test Bounty22", "participants": [
+{ "participation_id": 101, "user_id": 7, "student_name": "Student User 1",
+"status": "registered", "points_earned": 50, "berries_earned": 5
+}
+]
+}
+``` ### **GET /api/bounty-participation/my**
+**Description:** View own bounty participation (any authenticated user). Returns participations. **Response Example:**
+```json
+{ "user_id": 7, "student_name": "Student User 1", "participations": [
+{ "participation_id": 101, "bounty_id": 12, "bounty_name": "Test Bounty22", "status": "registered", "points_earned": 50, "berries_earned": 5
+}
+]
+}
+``` ### **POST /api/bounty-participation/**
+**Description:** Create a bounty participation (creator only). Returns success message. **Request Example:**
+```json
+{ "user_id": 7, "bounty_id": 15, "points_earned": 10, "berries_earned": 2, "status": "registered"
+}
+``` **Response Example:**
+```json
+{ "message": "Participation created"
+}
+``` ### **GET /api/bounty-participation/**
+**Description:** List all participations (creator/admin/faculty). Returns all records. **Response Example:**
+```json
+[
+{ "id": 1, "user_id": 7, "bounty_id": 15, "points_earned": 10, "berries_earned": 2, "status": "registered"
+}
+]``` ### **PUT /api/bounty-participation/:id**
+**Description:** Update a participation (creator only). Returns success message. **Request Example:**
+```json
+{ "points_earned": 20, "berries_earned": 5, "status": "completed"
+}
+``` **Response Example:**
+```json
+{ "message": "Participation updated"
+}
+``` ### **DELETE /api/bounty-participation/:id**
+**Description:** Delete a participation (creator only). Returns success message. **Response Example:**
+```json
+{ "message": "Participation deleted"
+}
+```
+--- ## **UserRewardClaimController** ### **POST /api/user-reward-claim/**
+**Description:** Create a reward claim (creator only). Returns success message. **Request Example:**
+```json
+{ "user_id": 7, "reward_id": 3, "berries_spent": 10, "redeemable_code": "ABCD1234"
+}
+``` **Response Example:**
+```json
+{ "message": "Reward claim created"
+}
+``` ### **GET /api/user-reward-claim/**
+**Description:** List all reward claims (creator only). Returns all records. **Response Example:**
+```json
+[
+{ "id": 1, "user_id": 7, "reward_id": 3, "berries_spent": 10, "redeemable_code": "ABCD1234"
+}
+]``` ### **PUT /api/user-reward-claim/:id**
+**Description:** Update a reward claim (creator only). Returns success message. **Request Example:**
+```json
+{ "berries_spent": 15, "redeemable_code": "NEWCODE99"
+}
+``` **Response Example:**
+```json
+{ "message": "Reward claim updated"
+}
+``` ### **DELETE /api/user-reward-claim/:id**
+**Description:** Delete a reward claim (creator only). Returns success message. **Response Example:**
+```json
+{ "message": "Reward claim deleted"
+}
+```
+---
+## **StatusController** ### **GET /api/status**
+**Description:** Get server status. Returns basic status info. **Response Example:**
+```json
+{ "status": "OK", "message": "Server is running"
+}
+``` ### **GET /api/status/detailed**
+**Description:** Get detailed server status. Returns more info. **Response Example:**
+```json
+{ "status": "OK", "details": {}
+}
+``` ### **GET /api/status/health**
+**Description:** Get health status. Returns health info. **Response Example:**
+```json
+{ "status": "healthy"
+}
+```
+--- **You can copy and paste this into Word for a well-structured, readable API documentation!**
+If you want this in a different format (like a table), let me know!

@@ -19,25 +19,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on app start
+  // Auto-login is disabled: always require login on app start
   useEffect(() => {
-    const checkExistingSession = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem('authToken');
-        const storedUser = await AsyncStorage.getItem('user');
-        
-        if (storedToken && storedUser) {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error('Error checking existing session:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkExistingSession();
+    setIsLoading(false);
+    setUser(null);
+    setToken(null);
+    // Optionally clear AsyncStorage to remove any cached credentials
+    AsyncStorage.removeItem('authToken');
+    AsyncStorage.removeItem('user');
   }, []);
 
   const login = async (email: string, password: string, role: string): Promise<boolean> => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockTransactions } from '@/data/mockData';
+import { pointsAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
 import { TrendingUp, TrendingDown, Filter, Calendar } from 'lucide-react-native';
@@ -16,166 +17,200 @@ const filterOptions = ['All', 'Earned', 'Spent'];
 
 export default function FacultyHistory() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState('All');
-  
-  const filteredTransactions = mockTransactions.filter(transaction => {
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadTransactions = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // For faculty, you may want to load transactions for all their students
+        // For now, just load for the faculty user (or all students if available)
+        // If you have a way to get all students for this faculty, replace below
+        const txns = await pointsAPI.getUserTransactions(user?.id);
+        setTransactions(txns);
+      } catch (err: any) {
+        setError('Failed to load transactions. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user?.id) loadTransactions();
+  }, [user]);
+
+  const filteredTransactions = transactions.filter(transaction => {
     if (selectedFilter === 'All') return true;
     return selectedFilter === 'Earned' 
       ? transaction.type === 'earned' 
       : transaction.type === 'spent';
   });
 
-  const totalEarned = mockTransactions
+  const totalEarned = transactions
     .filter(t => t.type === 'earned')
     .reduce((sum, t) => sum + t.points, 0);
-    
-  const totalSpent = Math.abs(mockTransactions
+  const totalSpent = Math.abs(transactions
     .filter(t => t.type === 'spent')
     .reduce((sum, t) => sum + t.points, 0));
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       <TopMenuBar 
         title="Points History"
         subtitle="Track student point activities"
         showBackButton={true}
       />
 
-      {/* Summary Cards */}
-      <View style={styles.summarySection}>
-        <View style={styles.summaryRow}>
-          <AnimatedCard style={styles.summaryCard}>
-            <View style={styles.summaryContent}>
-              <View style={[styles.summaryIcon, { backgroundColor: theme.colors.success + '20' }]}>
-                <TrendingUp size={20} color={theme.colors.success} />
-              </View>
-              <View>
-                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                  {totalEarned}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
-                  Total Awarded
-                </Text>
-              </View>
-            </View>
-          </AnimatedCard>
-          
-          <AnimatedCard style={styles.summaryCard}>
-            <View style={styles.summaryContent}>
-              <View style={[styles.summaryIcon, { backgroundColor: theme.colors.error + '20' }]}>
-                <TrendingDown size={20} color={theme.colors.error} />
-              </View>
-              <View>
-                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                  {totalSpent}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
-                  Total Redeemed
-                </Text>
-              </View>
-            </View>
-          </AnimatedCard>
-        </View>
-      </View>
-
-      {/* Filter Section */}
-      <View style={styles.filterSection}>
-        <View style={styles.filterButtons}>
-          {filterOptions.map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterButton,
-                {
-                  backgroundColor: selectedFilter === filter 
-                    ? theme.colors.primary 
-                    : theme.colors.surface,
-                  borderColor: theme.colors.border,
-                }
-              ]}
-              onPress={() => setSelectedFilter(filter)}
-            >
-              <Text style={[
-                styles.filterButtonText,
-                { 
-                  color: selectedFilter === filter 
-                    ? '#FFFFFF' 
-                    : theme.colors.textSecondary 
-                }
-              ]}>
-                {filter}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Transactions List */}
-      <ScrollView 
-        style={styles.transactionsList}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.transactionsContainer}>
-          {filteredTransactions.map((transaction) => (
-            <AnimatedCard key={transaction.id} style={styles.transactionCard}>
-              <View style={styles.transactionContent}>
-                <View style={[
-                  styles.transactionIcon,
-                  { 
-                    backgroundColor: transaction.type === 'earned' 
-                      ? theme.colors.success + '20' 
-                      : theme.colors.error + '20'
-                  }
-                ]}>
-                  {transaction.type === 'earned' ? (
+      {loading ? (
+        <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.text }}>Loading transactions...</Text>
+        </AnimatedCard>
+      ) : error ? (
+        <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.error }}>{error}</Text>
+        </AnimatedCard>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <View style={styles.summarySection}>
+            <View style={styles.summaryRow}>
+              <AnimatedCard style={styles.summaryCard}>
+                <View style={styles.summaryContent}>
+                  <View style={[styles.summaryIcon, { backgroundColor: theme.colors.success + '20' }]}> 
                     <TrendingUp size={20} color={theme.colors.success} />
-                  ) : (
-                    <TrendingDown size={20} color={theme.colors.error} />
-                  )}
-                </View>
-                
-                <View style={styles.transactionInfo}>
-                  <Text style={[styles.transactionDescription, { color: theme.colors.text }]}>
-                    {transaction.description}
-                  </Text>
-                  <View style={styles.transactionMeta}>
-                    <Calendar size={12} color={theme.colors.textSecondary} />
-                    <Text style={[styles.transactionDate, { color: theme.colors.textSecondary }]}>
-                      {new Date(transaction.date).toLocaleDateString()}
+                  </View>
+                  <View>
+                    <Text style={[styles.summaryValue, { color: theme.colors.text }]}> 
+                      {totalEarned}
                     </Text>
-                    {transaction.category && (
-                      <>
-                        <Text style={[styles.transactionSeparator, { color: theme.colors.textSecondary }]}>
-                          •
-                        </Text>
-                        <Text style={[styles.transactionCategory, { color: theme.colors.textSecondary }]}>
-                          {transaction.category}
-                        </Text>
-                      </>
-                    )}
+                    <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}> 
+                      Total Awarded
+                    </Text>
                   </View>
                 </View>
-                
-                <View style={styles.transactionPoints}>
+              </AnimatedCard>
+              
+              <AnimatedCard style={styles.summaryCard}>
+                <View style={styles.summaryContent}>
+                  <View style={[styles.summaryIcon, { backgroundColor: theme.colors.error + '20' }]}> 
+                    <TrendingDown size={20} color={theme.colors.error} />
+                  </View>
+                  <View>
+                    <Text style={[styles.summaryValue, { color: theme.colors.text }]}> 
+                      {totalSpent}
+                    </Text>
+                    <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}> 
+                      Total Redeemed
+                    </Text>
+                  </View>
+                </View>
+              </AnimatedCard>
+            </View>
+          </View>
+
+          {/* Filter Section */}
+          <View style={styles.filterSection}>
+            <View style={styles.filterButtons}>
+              {filterOptions.map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterButton,
+                    {
+                      backgroundColor: selectedFilter === filter 
+                        ? theme.colors.primary 
+                        : theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    }
+                  ]}
+                  onPress={() => setSelectedFilter(filter)}
+                >
                   <Text style={[
-                    styles.transactionPointsText,
+                    styles.filterButtonText,
                     { 
-                      color: transaction.type === 'earned' 
-                        ? theme.colors.success 
-                        : theme.colors.error 
+                      color: selectedFilter === filter 
+                        ? '#FFFFFF' 
+                        : theme.colors.textSecondary 
                     }
                   ]}>
-                    {transaction.type === 'earned' ? '+' : ''}{transaction.points}
+                    {filter}
                   </Text>
-                  <Text style={[styles.transactionPointsLabel, { color: theme.colors.textSecondary }]}>
-                    points
-                  </Text>
-                </View>
-              </View>
-            </AnimatedCard>
-          ))}
-        </View>
-      </ScrollView>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Transactions List */}
+          <ScrollView 
+            style={styles.transactionsList}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.transactionsContainer}>
+              {filteredTransactions.map((transaction) => (
+                <AnimatedCard key={transaction.id} style={styles.transactionCard}>
+                  <View style={styles.transactionContent}>
+                    <View style={[
+                      styles.transactionIcon,
+                      { 
+                        backgroundColor: transaction.type === 'earned' 
+                          ? theme.colors.success + '20' 
+                          : theme.colors.error + '20'
+                      }
+                    ]}>
+                      {transaction.type === 'earned' ? (
+                        <TrendingUp size={20} color={theme.colors.success} />
+                      ) : (
+                        <TrendingDown size={20} color={theme.colors.error} />
+                      )}
+                    </View>
+                    
+                    <View style={styles.transactionInfo}>
+                      <Text style={[styles.transactionDescription, { color: theme.colors.text }]}> 
+                        {transaction.description}
+                      </Text>
+                      <View style={styles.transactionMeta}>
+                        <Calendar size={12} color={theme.colors.textSecondary} />
+                        <Text style={[styles.transactionDate, { color: theme.colors.textSecondary }]}> 
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </Text>
+                        {transaction.category && (
+                          <>
+                            <Text style={[styles.transactionSeparator, { color: theme.colors.textSecondary }]}> 
+                              •
+                            </Text>
+                            <Text style={[styles.transactionCategory, { color: theme.colors.textSecondary }]}> 
+                              {transaction.category}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.transactionPoints}>
+                      <Text style={[
+                        styles.transactionPointsText,
+                        { 
+                          color: transaction.type === 'earned' 
+                            ? theme.colors.success 
+                            : theme.colors.error 
+                        }
+                      ]}>
+                        {transaction.type === 'earned' ? '+' : ''}{transaction.points}
+                      </Text>
+                      <Text style={[styles.transactionPointsLabel, { color: theme.colors.textSecondary }]}> 
+                        points
+                      </Text>
+                    </View>
+                  </View>
+                </AnimatedCard>
+              ))}
+            </View>
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }

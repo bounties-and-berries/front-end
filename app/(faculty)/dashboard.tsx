@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockUsers, mockTransactions } from '@/data/mockData';
+import { userAPI } from '@/services/api';
+import { pointsAPI } from '@/services/api';
 import { Student } from '@/types';
 import GradientCard from '@/components/GradientCard';
 import AnimatedCard from '@/components/AnimatedCard';
@@ -21,23 +22,57 @@ const filterOptions = ['All', 'Academic', 'Cultural', 'Volunteer', 'Attendance']
 export default function FacultyDashboard() {
   const { theme } = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('All');
-  
-  const students = mockUsers.filter(user => user.role === 'student') as Student[];
-  const totalPoints = students.reduce((sum, student) => sum + student.totalPoints, 0);
-  const avgPoints = Math.round(totalPoints / students.length);
-  
-  const recentTransactions = mockTransactions
-    .filter(t => t.type === 'earned')
-    .slice(0, 10);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const studentsData = await userAPI.getStudents();
+        setStudents(studentsData);
+        // Get all transactions for all students
+        const allTransactions: any[] = [];
+        for (const student of studentsData) {
+          const txns = await pointsAPI.getUserTransactions(student.id);
+          allTransactions.push(...txns.map(t => ({ ...t, studentId: student.id, studentName: student.name })));
+        }
+        setTransactions(allTransactions);
+      } catch (err: any) {
+        setError('Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const totalPoints = students.reduce((sum, student) => sum + (student.totalPoints || 0), 0);
+  const avgPoints = students.length > 0 ? Math.round(totalPoints / students.length) : 0;
+
+  // Filter transactions by type and selected filter
+  const filteredTransactions = transactions.filter(t => {
+    if (t.type !== 'earned') return false;
+    if (selectedFilter === 'All') return true;
+    return t.category && t.category.toLowerCase() === selectedFilter.toLowerCase();
+  }).slice(0, 10);
+
+  // Top performers by totalPoints
+  const topPerformers = [...students]
+    .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0))
+    .slice(0, 5);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
+        <Text style={[styles.title, { color: theme.colors.text }]}> 
           Analytics Dashboard
         </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}> 
           Student performance insights
         </Text>
       </View>
@@ -46,194 +81,204 @@ export default function FacultyDashboard() {
         style={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Overview Cards */}
-        <View style={styles.section}>
-          <GradientCard gradientColors={theme.colors.gradient.primary}>
-            <View style={styles.overviewCard}>
-              <View style={styles.overviewHeader}>
-                <Text style={styles.overviewTitle}>Department Overview</Text>
-                <BarChart3 size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.overviewStats}>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{students.length}</Text>
-                  <Text style={styles.overviewStatLabel}>Total Students</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{totalPoints.toLocaleString()}</Text>
-                  <Text style={styles.overviewStatLabel}>Total Points</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{avgPoints}</Text>
-                  <Text style={styles.overviewStatLabel}>Avg Points</Text>
-                </View>
-              </View>
-            </View>
-          </GradientCard>
-        </View>
-
-        {/* Quick Stats */}
-        <View style={styles.section}>
-          <View style={styles.statsGrid}>
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}>
-                  <TrendingUp size={20} color={theme.colors.success} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  +23%
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  This Month
-                </Text>
-              </View>
-            </AnimatedCard>
-            
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}>
-                  <Users size={20} color={theme.colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  89%
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Active Students
-                </Text>
-              </View>
-            </AnimatedCard>
-            
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}>
-                  <Award size={20} color={theme.colors.accent} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  156
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Achievements
-                </Text>
-              </View>
-            </AnimatedCard>
-          </View>
-        </View>
-
-        {/* Filter Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Point Distribution
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.filterButtons}>
-              {filterOptions.map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  style={[
-                    styles.filterButton,
-                    {
-                      backgroundColor: selectedFilter === filter 
-                        ? theme.colors.primary 
-                        : theme.colors.surface,
-                      borderColor: theme.colors.border,
-                    }
-                  ]}
-                  onPress={() => setSelectedFilter(filter)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    { 
-                      color: selectedFilter === filter 
-                        ? '#FFFFFF' 
-                        : theme.colors.textSecondary 
-                    }
-                  ]}>
-                    {filter}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Recent Point Awards
-          </Text>
-          
-          <View style={styles.transactionsList}>
-            {recentTransactions.map((transaction) => (
-              <AnimatedCard key={transaction.id} style={styles.transactionCard}>
-                <View style={styles.transactionContent}>
-                  <View style={[
-                    styles.transactionIcon,
-                    { backgroundColor: theme.colors.success + '20' }
-                  ]}>
-                    <TrendingUp size={16} color={theme.colors.success} />
+        {loading ? (
+          <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.text }}>Loading dashboard...</Text>
+          </AnimatedCard>
+        ) : error ? (
+          <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.error }}>{error}</Text>
+          </AnimatedCard>
+        ) : (
+          <>
+            {/* Overview Cards */}
+            <View style={styles.section}>
+              <GradientCard gradientColors={theme.colors.gradient.primary}>
+                <View style={styles.overviewCard}>
+                  <View style={styles.overviewHeader}>
+                    <Text style={styles.overviewTitle}>Department Overview</Text>
+                    <BarChart3 size={24} color="#FFFFFF" />
                   </View>
-                  <View style={styles.transactionInfo}>
-                    <Text style={[styles.transactionDescription, { color: theme.colors.text }]}>
-                      {transaction.description}
+                  <View style={styles.overviewStats}>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{students.length}</Text>
+                      <Text style={styles.overviewStatLabel}>Total Students</Text>
+                    </View>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{totalPoints.toLocaleString()}</Text>
+                      <Text style={styles.overviewStatLabel}>Total Points</Text>
+                    </View>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{avgPoints}</Text>
+                      <Text style={styles.overviewStatLabel}>Avg Points</Text>
+                    </View>
+                  </View>
+                </View>
+              </GradientCard>
+            </View>
+
+            {/* Quick Stats */}
+            <View style={styles.section}>
+              <View style={styles.statsGrid}>
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}> 
+                      <TrendingUp size={20} color={theme.colors.success} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      +23%
                     </Text>
-                    <View style={styles.transactionMeta}>
-                      <Calendar size={12} color={theme.colors.textSecondary} />
-                      <Text style={[styles.transactionDate, { color: theme.colors.textSecondary }]}>
-                        {new Date(transaction.date).toLocaleDateString()}
-                      </Text>
-                      {transaction.category && (
-                        <>
-                          <Text style={[styles.separator, { color: theme.colors.textSecondary }]}>•</Text>
-                          <Text style={[styles.transactionCategory, { color: theme.colors.textSecondary }]}>
-                            {transaction.category}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-                  <Text style={[styles.transactionPoints, { color: theme.colors.success }]}>
-                    +{transaction.points}
-                  </Text>
-                </View>
-              </AnimatedCard>
-            ))}
-          </View>
-        </View>
-
-        {/* Top Performers */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Top Performers
-          </Text>
-          
-          <View style={styles.performersList}>
-            {students
-              .sort((a, b) => b.totalPoints - a.totalPoints)
-              .slice(0, 5)
-              .map((student, index) => (
-                <AnimatedCard key={student.id} style={styles.performerCard}>
-                  <View style={styles.performerContent}>
-                    <View style={styles.performerRank}>
-                      <Text style={[styles.rankText, { color: theme.colors.primary }]}>
-                        #{index + 1}
-                      </Text>
-                    </View>
-                    <View style={styles.performerInfo}>
-                      <Text style={[styles.performerName, { color: theme.colors.text }]}>
-                        {student.name}
-                      </Text>
-                      <Text style={[styles.performerDepartment, { color: theme.colors.textSecondary }]}>
-                        Year {student.year}
-                      </Text>
-                    </View>
-                    <Text style={[styles.performerPoints, { color: theme.colors.primary }]}>
-                      {student.totalPoints}
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      This Month
                     </Text>
                   </View>
                 </AnimatedCard>
-              ))}
-          </View>
-        </View>
+                
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}> 
+                      <Users size={20} color={theme.colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      89%
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      Active Students
+                    </Text>
+                  </View>
+                </AnimatedCard>
+                
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}> 
+                      <Award size={20} color={theme.colors.accent} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      156
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      Achievements
+                    </Text>
+                  </View>
+                </AnimatedCard>
+              </View>
+            </View>
+
+            {/* Filter Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}> 
+                Point Distribution
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.filterButtons}>
+                  {filterOptions.map((filter) => (
+                    <TouchableOpacity
+                      key={filter}
+                      style={[
+                        styles.filterButton,
+                        {
+                          backgroundColor: selectedFilter === filter 
+                            ? theme.colors.primary 
+                            : theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        }
+                      ]}
+                      onPress={() => setSelectedFilter(filter)}
+                    >
+                      <Text style={[
+                        styles.filterButtonText,
+                        { 
+                          color: selectedFilter === filter 
+                            ? '#FFFFFF' 
+                            : theme.colors.textSecondary 
+                        }
+                      ]}>
+                        {filter}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Recent Activity */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}> 
+                Recent Point Awards
+              </Text>
+              
+              <View style={styles.transactionsList}>
+                {filteredTransactions.map((transaction) => (
+                  <AnimatedCard key={transaction.id} style={styles.transactionCard}>
+                    <View style={styles.transactionContent}>
+                      <View style={[
+                        styles.transactionIcon,
+                        { backgroundColor: theme.colors.success + '20' }
+                      ]}> 
+                        <TrendingUp size={16} color={theme.colors.success} />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={[styles.transactionDescription, { color: theme.colors.text }]}> 
+                          {transaction.description}
+                        </Text>
+                        <View style={styles.transactionMeta}>
+                          <Calendar size={12} color={theme.colors.textSecondary} />
+                          <Text style={[styles.transactionDate, { color: theme.colors.textSecondary }]}> 
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </Text>
+                          {transaction.category && (
+                            <>
+                              <Text style={[styles.separator, { color: theme.colors.textSecondary }]}>•</Text>
+                              <Text style={[styles.transactionCategory, { color: theme.colors.textSecondary }]}> 
+                                {transaction.category}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={[styles.transactionPoints, { color: theme.colors.success }]}> 
+                        +{transaction.points}
+                      </Text>
+                    </View>
+                  </AnimatedCard>
+                ))}
+              </View>
+            </View>
+
+            {/* Top Performers */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}> 
+                Top Performers
+              </Text>
+              
+              <View style={styles.performersList}>
+                {topPerformers
+                  .map((student, index) => (
+                    <AnimatedCard key={student.id} style={styles.performerCard}>
+                      <View style={styles.performerContent}>
+                        <View style={styles.performerRank}>
+                          <Text style={[styles.rankText, { color: theme.colors.primary }]}> 
+                            #{index + 1}
+                          </Text>
+                        </View>
+                        <View style={styles.performerInfo}>
+                          <Text style={[styles.performerName, { color: theme.colors.text }]}> 
+                            {student.name}
+                          </Text>
+                          <Text style={[styles.performerDepartment, { color: theme.colors.textSecondary }]}> 
+                            Year {student.year}
+                          </Text>
+                        </View>
+                        <Text style={[styles.performerPoints, { color: theme.colors.primary }]}> 
+                          {student.totalPoints}
+                        </Text>
+                      </View>
+                    </AnimatedCard>
+                  ))}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );

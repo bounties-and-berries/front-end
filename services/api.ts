@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Event, User, Student, Faculty, Admin, Reward, Achievement, Badge, PointTransaction, Notification, BackendBounty, BackendBountyRequest } from '@/types';
+import { Event, User, Student, Faculty, Admin, Reward, Achievement, Badge, PointTransaction, Notification, BackendBounty, BackendBountyRequest, ClaimedReward } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Helper function to convert backend bounty to frontend event format
@@ -155,8 +155,22 @@ const extractUserFromToken = (token: string): Student | Faculty | Admin => {
   }
 };
 
+// Helper function to convert backend reward to frontend Reward type
+function convertBackendRewardToReward(backend: any): Reward {
+  return {
+    id: backend.id,
+    title: backend.name,
+    description: backend.description,
+    category: 'merchandise', // Default or infer if needed
+    pointsCost: Number(backend.berries_required),
+    availability: 1, // Default, update if backend provides this
+    image: backend.img_url,
+    terms: undefined, // Map if available
+  };
+}
+
 // Base API configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://46640a0dc9aa.ngrok-free.app';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://11835ccc539d.ngrok-free.app';
 
 // Create API instance with ngrok-friendly configuration
 const api = axios.create({
@@ -806,38 +820,46 @@ export const userAPI = {
 export const rewardAPI = {
   // Get all rewards
   getAllRewards: async () => {
-    const response = await api.get('/rewards');
-    return response.data as Reward[];
+    // Use '/api/reward' to match backend docs and ngrok path
+    const response = await api.get('/api/reward');
+    console.log('Raw rewards response:', response.data); // Debug log
+    return (response.data as any[]).map(convertBackendRewardToReward);
   },
 
   // Get reward by ID
   getRewardById: async (rewardId: string) => {
-    const response = await api.get(`/rewards/${rewardId}`);
-    return response.data as Reward;
+    const response = await api.get(`/api/reward/${rewardId}`);
+    return convertBackendRewardToReward(response.data);
   },
 
   // Redeem reward
   redeemReward: async (rewardId: string, userId: string) => {
-    const response = await api.post(`/rewards/${rewardId}/redeem`, { userId });
+    const response = await api.post(`/api/reward/${rewardId}/redeem`, { userId });
     return response.data;
   },
 
   // Create reward (for admin)
   createReward: async (rewardData: Omit<Reward, 'id'>) => {
-    const response = await api.post('/rewards', rewardData);
+    const response = await api.post('/api/reward', rewardData);
     return response.data as Reward;
   },
 
   // Update reward (for admin)
   updateReward: async (rewardId: string, rewardData: Partial<Reward>) => {
-    const response = await api.put(`/rewards/${rewardId}`, rewardData);
+    const response = await api.put(`/api/reward/${rewardId}`, rewardData);
     return response.data as Reward;
   },
 
   // Delete reward (for admin)
   deleteReward: async (rewardId: string) => {
-    const response = await api.delete(`/rewards/${rewardId}`);
+    const response = await api.delete(`/api/reward/${rewardId}`);
     return response.data;
+  },
+
+  // Get claimed rewards for current user
+  getClaimedRewards: async () => {
+    const response = await api.get('/api/reward/claimed');
+    return response.data as ClaimedReward[];
   },
 };
 
@@ -947,7 +969,7 @@ export const authAPI = {
       console.log('Request body:', { identifier, password, role });
       
       const response = await api.post('/api/auth/login', { 
-        identifier, 
+        name: identifier, // Pass identifier as name for backend compatibility
         password,
         role
       });
@@ -986,7 +1008,13 @@ export const authAPI = {
       }
     } catch (error: any) {
       console.error('Login API error:', error);
-      console.error('Error response:', error.response?.data);
+      if (error.response) {
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
+        alert('Login failed: ' + (error.response.data?.message || JSON.stringify(error.response.data)));
+      } else {
+        alert('Login failed: ' + error.message);
+      }
       throw error;
     }
   },

@@ -44,16 +44,21 @@ export default function StudentRewards() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [rewardsData, transactions] = await Promise.all([
-          rewardAPI.getAllRewards(),
-          pointsAPI.getUserTransactions(student?.id || '1'),
-        ]);
+        const rewardsData = await rewardAPI.getAllRewards();
+        console.log('Mapped rewards:', rewardsData); // Debug log
         setRewards(rewardsData);
-        
-        // Calculate stats from transactions
-        const spentTransactions = transactions.filter(t => t.type === 'spent');
-        setItemsClaimed(spentTransactions.length);
-        setTotalPointsSpent(Math.abs(spentTransactions.reduce((sum, t) => sum + t.points, 0)));
+
+        try {
+          // Try to fetch reward claims (user transactions)
+          const transactions = await pointsAPI.getUserTransactions(student?.id || '1');
+          const spentTransactions = transactions.filter(t => t.type === 'spent');
+          setItemsClaimed(spentTransactions.length);
+          setTotalPointsSpent(Math.abs(spentTransactions.reduce((sum, t) => sum + t.points, 0)));
+        } catch (err) {
+          console.error('Error loading transactions (reward claims):', err);
+          setItemsClaimed(0);
+          setTotalPointsSpent(0);
+        }
       } catch (error) {
         console.error('Error loading rewards:', error);
         Alert.alert('Error', 'Failed to load rewards. Please try again.');

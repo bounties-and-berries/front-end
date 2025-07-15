@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { mockEvents } from '@/data/mockData';
+import { eventAPI } from '@/services/api';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
 import { Calendar, MapPin, Users, Star, CreditCard as Edit, Trash2, CircleCheck as CheckCircle } from 'lucide-react-native';
@@ -19,16 +19,43 @@ export default function BountyDetails() {
   const { theme } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  
-  const bounty = mockEvents.find(event => event.id === id);
+  const [bounty, setBounty] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!bounty) {
+  useEffect(() => {
+    const loadBounty = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const bountyData = await eventAPI.getEventById(id as string);
+        setBounty(bountyData);
+      } catch (err: any) {
+        setError('Bounty not found');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) loadBounty();
+  }, [id]);
+
+  if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
+        <TopMenuBar title="Bounty Details" />
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.colors.text }]}>Loading bounty...</Text>
+        </View>
+      </View>
+    );
+  }
+  if (error || !bounty) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
         <TopMenuBar title="Bounty Not Found" />
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.text }]}>
-            Bounty not found
+          <Text style={[styles.errorText, { color: theme.colors.text }]}> 
+            {error || 'Bounty not found'}
           </Text>
         </View>
       </View>

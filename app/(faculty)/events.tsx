@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockEvents } from '@/data/mockData';
+import { eventAPI } from '@/services/api';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
 import { Plus, Search, Calendar, MapPin, Users, CreditCard as Edit, Trash2 } from 'lucide-react-native';
@@ -18,12 +18,36 @@ import { Plus, Search, Calendar, MapPin, Users, CreditCard as Edit, Trash2 } fro
 export default function FacultyEvents() {
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
-  const [events, setEvents] = useState(mockEvents);
-  
-  const filteredEvents = events.filter(event =>
-    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    event.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load events from API
+  const loadEvents = async (search?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const eventsData = await eventAPI.getAllEvents({ search });
+      setEvents(eventsData);
+    } catch (err: any) {
+      setError('Failed to load bounties. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      loadEvents(searchQuery);
+    }, 400);
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
+
+  const filteredEvents = events;
 
   const handleCreateEvent = () => {
     Alert.alert('Create Bounty', 'Bounty creation form will be available soon.');
@@ -42,9 +66,17 @@ export default function FacultyEvents() {
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => {
-            setEvents(prev => prev.filter(event => event.id !== eventId));
-            Alert.alert('Success', 'Bounty deleted successfully!');
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await eventAPI.deleteEvent(eventId);
+              setEvents(prev => prev.filter(event => event.id !== eventId));
+              Alert.alert('Success', 'Bounty deleted successfully!');
+            } catch (err: any) {
+              Alert.alert('Error', 'Failed to delete bounty. Please try again.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
       ]
@@ -90,14 +122,32 @@ export default function FacultyEvents() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.eventsContainer}>
-          {filteredEvents.length === 0 ? (
+          {loading ? (
             <AnimatedCard style={styles.emptyCard}>
               <View style={styles.emptyContent}>
                 <Calendar size={48} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+                <Text style={[styles.emptyTitle, { color: theme.colors.text }]}> 
+                  Loading bounties...
+                </Text>
+              </View>
+            </AnimatedCard>
+          ) : error ? (
+            <AnimatedCard style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <Calendar size={48} color={theme.colors.error} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.error }]}> 
+                  {error}
+                </Text>
+              </View>
+            </AnimatedCard>
+          ) : filteredEvents.length === 0 ? (
+            <AnimatedCard style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <Calendar size={48} color={theme.colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.text }]}> 
                   No Bounties Found
                 </Text>
-                <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}> 
                   Create your first bounty to get started.
                 </Text>
               </View>
@@ -114,7 +164,7 @@ export default function FacultyEvents() {
                         styles.categoryTag,
                         { backgroundColor: theme.colors.primary + '20' }
                       ]}>
-                        <Text style={[styles.categoryTagText, { color: theme.colors.primary }]}>
+                        <Text style={[styles.categoryTagText, { color: theme.colors.primary }]}> 
                           {event.category}
                         </Text>
                       </View>
@@ -134,7 +184,7 @@ export default function FacultyEvents() {
                       </View>
                     </View>
                     
-                    <Text style={[styles.eventTitle, { color: theme.colors.text }]}>
+                    <Text style={[styles.eventTitle, { color: theme.colors.text }]}> 
                       {event.title}
                     </Text>
                     <Text style={[styles.eventDescription, { color: theme.colors.textSecondary }]} numberOfLines={2}>
@@ -144,19 +194,19 @@ export default function FacultyEvents() {
                     <View style={styles.eventDetails}>
                       <View style={styles.eventDetail}>
                         <Calendar size={16} color={theme.colors.textSecondary} />
-                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}> 
                           {new Date(event.date).toLocaleDateString()}
                         </Text>
                       </View>
                       <View style={styles.eventDetail}>
                         <MapPin size={16} color={theme.colors.textSecondary} />
-                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}> 
                           {event.location}
                         </Text>
                       </View>
                       <View style={styles.eventDetail}>
                         <Users size={16} color={theme.colors.textSecondary} />
-                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}>
+                        <Text style={[styles.eventDetailText, { color: theme.colors.textSecondary }]}> 
                           {event.currentParticipants}/{event.maxParticipants}
                         </Text>
                       </View>
@@ -164,7 +214,7 @@ export default function FacultyEvents() {
                     
                     <View style={styles.eventFooter}>
                       <View style={styles.pointsBadge}>
-                        <Text style={[styles.pointsText, { color: theme.colors.accent }]}>
+                        <Text style={[styles.pointsText, { color: theme.colors.accent }]}> 
                           {event.points} berries
                         </Text>
                       </View>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { Admin } from '@/types';
-import { mockUsers, mockTransactions, mockEvents } from '@/data/mockData';
+import { userAPI, pointsAPI, eventAPI } from '@/services/api';
 import GradientCard from '@/components/GradientCard';
 import AnimatedCard from '@/components/AnimatedCard';
 import TopMenuBar from '@/components/TopMenuBar';
@@ -26,20 +26,51 @@ export default function AdminHome() {
   const { user } = useAuth();
   const router = useRouter();
   const admin = user as Admin;
+  const [students, setStudents] = useState<any[]>([]);
+  const [faculty, setFaculty] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalStudents = mockUsers.filter(u => u.role === 'student').length;
-  const totalFaculty = mockUsers.filter(u => u.role === 'faculty').length;
-  const totalPoints = mockTransactions
-    .filter(t => t.type === 'earned')
-    .reduce((sum, t) => sum + t.points, 0);
-  const activeEvents = mockEvents.length;
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const studentsData = await userAPI.getStudents();
+        setStudents(studentsData);
+        const facultyData = await userAPI.getFaculty();
+        setFaculty(facultyData);
+        const eventsData = await eventAPI.getAllEvents();
+        setEvents(eventsData);
+        // Get all transactions for all students
+        const allTransactions: any[] = [];
+        for (const student of studentsData) {
+          const txns = await pointsAPI.getUserTransactions(student.id);
+          allTransactions.push(...txns.map(t => ({ ...t, studentId: student.id, studentName: student.name })));
+        }
+        setTransactions(allTransactions);
+      } catch (err: any) {
+        setError('Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
-  // Mock data for new metrics
+  const totalStudents = students.length;
+  const totalFaculty = faculty.length;
+  const totalPoints = transactions.filter(t => t.type === 'earned').reduce((sum, t) => sum + (t.points || 0), 0);
+  const activeEvents = events.length;
+  // For demo: pointsRedeemed and activeUsers can be calculated or left as placeholders
   const pointsRedeemed = 1250;
   const activeUsers = 89;
+  const recentActivity = transactions.filter(t => t.type === 'earned').slice(0, 5);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       <TopMenuBar 
         title="Good Morning"
         subtitle={`Welcome back, ${admin?.name}`}
@@ -49,187 +80,137 @@ export default function AdminHome() {
         style={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Overview Card */}
-        <View style={styles.section}>
-          <GradientCard gradientColors={theme.colors.gradient.primary}>
-            <View style={styles.overviewCard}>
-              <View style={styles.overviewHeader}>
-                <View>
-                  <Text style={styles.overviewTitle}>College Overview</Text>
-                  <Text style={styles.overviewSubtitle}>
-                    {admin?.collegeName}
-                  </Text>
+        {loading ? (
+          <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.text }}>Loading dashboard...</Text>
+          </AnimatedCard>
+        ) : error ? (
+          <AnimatedCard style={{ margin: 20, padding: 40, alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.error }}>{error}</Text>
+          </AnimatedCard>
+        ) : (
+          <>
+            {/* Overview Card */}
+            <View style={styles.section}>
+              <GradientCard gradientColors={theme.colors.gradient.primary}>
+                <View style={styles.overviewCard}>
+                  <View style={styles.overviewHeader}>
+                    <View>
+                      <Text style={styles.overviewTitle}>College Overview</Text>
+                      <Text style={styles.overviewSubtitle}>
+                        {admin?.collegeName}
+                      </Text>
+                    </View>
+                    <View style={styles.overviewIcon}>
+                      <BarChart3 size={32} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <View style={styles.overviewStats}>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{totalStudents}</Text>
+                      <Text style={styles.overviewStatLabel}>Students</Text>
+                    </View>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{totalFaculty}</Text>
+                      <Text style={styles.overviewStatLabel}>Faculty</Text>
+                    </View>
+                    <View style={styles.overviewStat}>
+                      <Text style={styles.overviewStatValue}>{totalPoints.toLocaleString()}</Text>
+                      <Text style={styles.overviewStatLabel}>Total Points</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.overviewIcon}>
-                  <BarChart3 size={32} color="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.overviewStats}>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{totalStudents}</Text>
-                  <Text style={styles.overviewStatLabel}>Students</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{totalFaculty}</Text>
-                  <Text style={styles.overviewStatLabel}>Faculty</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{totalPoints.toLocaleString()}</Text>
-                  <Text style={styles.overviewStatLabel}>Total Points</Text>
-                </View>
+              </GradientCard>
+            </View>
+
+            {/* Quick Stats */}
+            <View style={styles.section}>
+              <View style={styles.statsRow}>
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}> 
+                      <TrendingUp size={24} color={theme.colors.success} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      {pointsRedeemed}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      Points Redeemed
+                    </Text>
+                  </View>
+                </AnimatedCard>
+                
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}> 
+                      <Activity size={24} color={theme.colors.primary} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      {activeUsers}%
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      Active Users
+                    </Text>
+                  </View>
+                </AnimatedCard>
+                
+                <AnimatedCard style={styles.statCard}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}> 
+                      <Award size={24} color={theme.colors.accent} />
+                    </View>
+                    <Text style={[styles.statValue, { color: theme.colors.text }]}> 
+                      {activeEvents}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}> 
+                      Active Events
+                    </Text>
+                  </View>
+                </AnimatedCard>
               </View>
             </View>
-          </GradientCard>
-        </View>
 
-        {/* Quick Stats */}
-        <View style={styles.section}>
-          <View style={styles.statsRow}>
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '20' }]}>
-                  <TrendingUp size={24} color={theme.colors.success} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {pointsRedeemed}
+            {/* Recent Activity */}
+            <View className={"section"} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}> 
+                  Recent Activity
                 </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Points Redeemed
-                </Text>
-              </View>
-            </AnimatedCard>
-            
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.primary + '20' }]}>
-                  <Activity size={24} color={theme.colors.primary} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {activeUsers}%
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Active Users
-                </Text>
-              </View>
-            </AnimatedCard>
-            
-            <AnimatedCard style={styles.statCard}>
-              <View style={styles.statContent}>
-                <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}>
-                  <Award size={24} color={theme.colors.accent} />
-                </View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {activeEvents}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Active Events
-                </Text>
-              </View>
-            </AnimatedCard>
-          </View>
-        </View>
-
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Recent Activity
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/(admin)/dashboard')}>
-              <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
-                View All
-              </Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.activityList}>
-            {mockTransactions.slice(0, 5).map((transaction) => (
-              <AnimatedCard key={transaction.id} style={styles.activityCard}>
-                <View style={styles.activityContent}>
-                  <View style={[
-                    styles.activityIcon,
-                    { backgroundColor: theme.colors.success + '20' }
-                  ]}>
-                    <TrendingUp size={16} color={theme.colors.success} />
-                  </View>
-                  <View style={styles.activityInfo}>
-                    <Text style={[styles.activityDescription, { color: theme.colors.text }]}>
-                      {transaction.description}
-                    </Text>
-                    <Text style={[styles.activityDate, { color: theme.colors.textSecondary }]}>
-                      {new Date(transaction.date).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <Text style={[styles.activityPoints, { color: theme.colors.success }]}>
-                    +{transaction.points}
+                <TouchableOpacity onPress={() => router.push('/(admin)/dashboard')}>
+                  <Text style={[styles.seeAll, { color: theme.colors.primary }]}> 
+                    View All
                   </Text>
-                </View>
-              </AnimatedCard>
-            ))}
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Quick Actions
-          </Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(admin)/users')}
-            >
-              <LinearGradient
-                colors={theme.colors.gradient.primary}
-                style={styles.actionButtonGradient}
-              >
-                <Users size={24} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Manage Users</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(admin)/add-user')}
-            >
-              <LinearGradient
-                colors={theme.colors.gradient.secondary}
-                style={styles.actionButtonGradient}
-              >
-                <UserPlus size={24} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Add User</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(admin)/rules')}
-            >
-              <LinearGradient
-                colors={theme.colors.gradient.accent}
-                style={styles.actionButtonGradient}
-              >
-                <Shield size={24} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Point Rules</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(admin)/feeds')}
-            >
-              <LinearGradient
-                colors={['#10B981', '#059669']}
-                style={styles.actionButtonGradient}
-              >
-                <Rss size={24} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Feeds</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.activityList}>
+                {recentActivity.map((transaction) => (
+                  <AnimatedCard key={transaction.id} style={styles.activityCard}>
+                    <View style={styles.activityContent}>
+                      <View style={[
+                        styles.activityIcon,
+                        { backgroundColor: theme.colors.success + '20' }
+                      ]}>
+                        <TrendingUp size={16} color={theme.colors.success} />
+                      </View>
+                      <View style={styles.activityInfo}>
+                        <Text style={[styles.activityDescription, { color: theme.colors.text }]}> 
+                          {transaction.description}
+                        </Text>
+                        <Text style={[styles.activityDate, { color: theme.colors.textSecondary }]}> 
+                          {new Date(transaction.date).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <Text style={[styles.activityPoints, { color: theme.colors.success }]}> 
+                        +{transaction.points}
+                      </Text>
+                    </View>
+                  </AnimatedCard>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );

@@ -70,56 +70,7 @@ export default function StudentEvents() {
         }
         
         // If no events from API, show some mock data for testing
-        if (upcoming.length === 0) {
-          console.log('No events from API, showing mock data for testing');
-          const mockEvents: Event[] = [
-            {
-              id: '1',
-              title: 'Hackathon 2024',
-              description: 'Annual coding competition with exciting prizes',
-              category: 'academic' as const,
-              date: '2024-03-15',
-              location: 'Main Auditorium',
-              points: 500,
-              registrationDeadline: '2024-03-10',
-              maxParticipants: 100,
-              currentParticipants: 75,
-              createdBy: '2',
-              image: 'https://images.pexels.com/photos/1181672/pexels-photo-1181672.jpeg?auto=compress&cs=tinysrgb&w=800',
-            },
-            {
-              id: '2',
-              title: 'Cultural Fest',
-              description: 'Showcase your talents in music, dance, and art',
-              category: 'cultural' as const,
-              date: '2024-03-20',
-              location: 'Campus Ground',
-              points: 300,
-              registrationDeadline: '2024-03-18',
-              maxParticipants: 200,
-              currentParticipants: 120,
-              createdBy: '2',
-              image: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=800',
-            },
-            {
-              id: '3',
-              title: 'Tree Plantation Drive',
-              description: 'Help make our campus greener by planting trees',
-              category: 'volunteer' as const,
-              date: '2024-03-25',
-              location: 'Campus Garden',
-              points: 200,
-              registrationDeadline: '2024-03-23',
-              maxParticipants: 50,
-              currentParticipants: 25,
-              createdBy: '2',
-              image: 'https://images.pexels.com/photos/1179229/pexels-photo-1179229.jpeg?auto=compress&cs=tinysrgb&w=800',
-            }
-          ];
-          setUpcomingEvents(mockEvents);
-        } else {
-          setUpcomingEvents(upcoming);
-        }
+        setUpcomingEvents(upcoming);
         
         setRegisteredEvents(registered);
         setCompletedEvents(completed);
